@@ -1,7 +1,7 @@
 # NCAP Video Analyser
 This project contains a program that analyses an NCAP crash test video and calculates the distance traveled, speed and acceleration of the car.
 
-![Video](http://i.imgur.com/tfDPQFw.gif)
+[__Click here for a demo video__](https://youtu.be/TJxKap6bziY)
 
 ## Inhoud
 * [NCAP crash test](#ncap-crash-test)
