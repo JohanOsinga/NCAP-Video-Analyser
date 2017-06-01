@@ -1,5 +1,7 @@
-# NCAP-Video-Analyser
-This project contains a program that analyses an NCAP crash test video and calculates the traveled distance, speed and acceleration of the car.
+# NCAP Video Analyser
+This project contains a program that analyses an NCAP crash test video and calculates the distance traveled, speed and acceleration of the car.
+
+![Video](http://i.imgur.com/tfDPQFw.gif)
 
 ## Inhoud
 * [NCAP crash test](#ncap-crash-test)
@@ -18,10 +20,7 @@ This project contains a program that analyses an NCAP crash test video and calcu
   * [Speed](#speed)
   * [Frame time](#frame-time)
   * [Acceleration](#acceleration)
-* [Program](#program)
-  * [Tkinter](#tkinter)
-  * [Matplotlib](#matplotlib)
-  * [OpenCV](#opencv)
+  * [Result](#result)
 
 ## NCAP crash test
 Data from the Euro NCAP is used to determine the distance, speed and acceleration. The datapoints are extracted from a video. The scale is measured using the size of the logo.
@@ -32,7 +31,7 @@ The video that is used in this program is a crash test of a Toyota Hilux 2016 mo
 ![frame from ncap video](http://i.imgur.com/vtTua2e.jpg)  
 _Video frame_
 
-The NCAP logo in this video is used to determine travelled distance between frames.
+The NCAP logo in this video is used to determine distance traveled between frames.
 
 The video file can be found in [video/hilux_ncap_short.mp4](https://github.com/JohanOsinga/NCAP-Video-Analyser/blob/master/video/hilux_ncap_short.mp4)
 
@@ -54,7 +53,7 @@ _ROI displayed in UI_
 
 Creating a ROI in OpenCV using Python is done by creating a binary mask with the same height and width of the original frame. This binary mask has to contain one's at the pixels that need to be in the ROI, the rest is zero's. The ROI is created by by performing a ```cv2.bitwise_and()``` operation on the original image and the mask. Only the pixels matching a 1 in the mask will be kept. The python code is shown below.
 
-__Applying ROI to frame__
+
 ```python
 #apply roi
 height, width = frame.shape[:2]
@@ -200,37 +199,184 @@ _Keypoint drawn on ROI_
 These vision operations are performed for every frame of the video. The result of this is an array with datapoints. These datapoints are then analysed. This process is described in the next part.
 
 ## Data Analysis
-Analysing keypoint data 
+The datapoints from the SimpleBlobDetector are analysed. The result of this are four graphs with distance traveled, speed and acceleration.
 
 ### Predefined values
-Predefined values eg, begin speed, size of ncap marker
+There are some values that are predefined and not extracted from the datapoints. These are the following:
+
+#### NCAP logo size
+The size of the NCAP logo is __176mm__.  
+This size is used to calculate the relation between pixels and millimeters.
+
+#### Car speed
+The starting speed of the car is __64km/u__.  
+This is used to extrapolate the speed at every frame using the starting speed and the distance traveled per frame.
 
 ### Calculating mm per pixel
-MM_PX
+The relation between millimeters an pixels is calculated using the size of the NCAP logo circle and the size of the keypoint (size in pixels). The code below is used when calculating the conversion ratio for millimeters per pixel.
+
+```python
+def _calc_mm_px(self, datapoints):
+    """Calculated the relation between mm and pixels"""
+    mm_px_total = 0
+    for frame in datapoints:
+        #get the size of the blob
+        logo_size = frame[2]
+        mm_px = self.ncap_logo_mm / logo_size
+        mm_px_total += mm_px
+    return mm_px_total / len(datapoints)
+```
 
 ### Delta-distance
-ddistance
+The delta-distance is used for calculating the Δx in the formula for calculating speed.  
+The python function below is used when calculating the delta-distance. The input is the datapoints from the vision analysis. The output is an array with distance traveled per frame.
+
+```python
+def _calc_delta_distance(self, datapoints):
+    """Calculates the distance from datapoints
+
+    input -> datapoints from file
+
+    output -> distance in m per frame
+    """
+    #mm per px is known, so convert delta pixel to mm
+    d_distance_points = []
+    prev_point = None
+    for point in datapoints:
+        if prev_point is not None:
+            delta = [point[1][0] - prev_point[0], point[1][1] - prev_point[1]]
+            delta_vector = self.__pythagoras(delta[0], delta[1])
+            #Apply mm per pixel conversion
+            distance_vector = delta_vector * (self.mm_px / 1000)
+            d_distance_points.append(distance_vector)
+        else:
+            prev_point = [0, 0]
+        prev_point[0] = point[1][0]
+        prev_point[1] = point[1][1]
+
+    return self.__moving_avg(d_distance_points, 5)
+```
+
+The data is filtered using a moving average filter before returned. This smooths out the output and removes unwanted inconsistencies.
 
 ### Distance
-Distance
+The total distance is calculated from the delta-distance by simply adding the delta-distance values each frame. The function for calculating the distance points is shown below.
+
+```python
+def _calc_distance(self, d_distance_points):
+    """Calculates the total distance from delta-distance points
+
+    input   -> delta-distance points
+
+    output  -> accumilated distance per frame
+    """
+    total_distance = 0
+    distance_points = [0]
+    for d_dist_point in d_distance_points:
+        total_distance += d_dist_point
+        distance_points.append(total_distance)
+
+    return distance_points
+```
+
+This function returns an array with the cumulative distance of every frame.
 
 ### Speed
-Speed
+The speed is calculated using the delta-distance points.  
+The assumption is made that the first delta-distance point is at the speed of __64km/u__. Every following point is calculated using the relation between distance traveled and speed.  
+The function used to calculate the speed is shown below.
+
+```python
+def _calc_speed(self, d_distance_points):
+    """Calculates speed from delta-distance points
+    using known starting speed
+
+    input   -> delta-distance points
+
+    output  -> speed points
+    """
+    #ASSUMPTION: first d_x is at max speed
+
+    #speed per d_distance
+    d_vel_px = self.start_speed / d_distance_points[0]
+    vel_points = []
+    for d_x in d_distance_points:
+        vel = d_x * d_vel_px
+        vel_points.append(vel)
+
+    return vel_points
+```
+
 
 ### Frame time
-Calculating frame timing
+The frame time is the time that ellapses between individual frames. The frame time is used to calculate the acceleration from the speed-datapoints and is used to provide the x-axis values when plotting the results.
+
+The frame time is calculated using the delta-distance and the speed values of a frame. It calculates the time it would take to cover that distance with that speed. This is the time that ellapsed. The function that is used to calculate the frame time is shown below.
+
+```python
+def _calc_frame_time(self, d_distance_points, vel_points):
+    """Calculates frametime from delta_distance and velocity
+
+    input   -> delta-distance, velocity
+
+    output  -> frame time
+    """
+    #Take velocity between frames
+    #Take d_distance between frames
+    #Calc time between frames
+    frame_times = []
+    for i in range(0, len(d_distance_points)):
+        if not (d_distance_points[i] == 0) and not (vel_points[i] == 0):
+            frame_time = d_distance_points[i] / vel_points[i]
+            frame_times.append(frame_time)
+
+    frame_time_avg = 0
+    for frame_time in frame_times:
+        frame_time_avg += frame_time
+    frame_time_avg = frame_time_avg / len(frame_times)
+
+    return frame_time_avg
+```
+
+The result is the average of all frame times.  
+(In the used video, all the frame times are the same so averaging is not required)
 
 ### Acceleration
-Acceleration
+The final calculation is the acceleration. Acceleration is calculated using the following formula:
 
-## Program
-Program
+a = Δv / Δt
 
-### Tkinter
-tkinter for UI
+Δv = current speed point - previous speed point  
+Δt = frame time
 
-### Matplotlib
-matplotlib for graphs
+Every frame is iterated over and the Δv is calculated, the Δt is a constant factor. The acceleration is then calculated and added to an array. The function is shown below.
 
-### OpenCV
-opencv for computer vision
+```python
+def _calc_acceleration(self, vel_points):
+    """Calculates acceleration from velocity points
+
+    input   -> velocity per frame
+
+    output  -> acceleration per frame
+    """
+
+    acceleration_points = []
+    prev_vel = self.start_speed
+    for vel_point in vel_points:
+        d_v = prev_vel - vel_point
+        d_t = self.frame_time
+        a = d_v / d_t
+        acceleration_points.append(a)
+        prev_vel = vel_point
+
+    return self.__moving_avg(acceleration_points, 5)
+```
+
+This function returns the acceleration points. This is the last component needed before the plot can be made.
+The acceleration is also calculated in G's, this is done by dividing the acceleration in m/s² by 9,81.
+
+### Result
+The results are plotted using Matplotlib. The figure consists of four plots: distance traveled, speed, acceleration in m/s² and acceleration in G's. The resulting plots are displayed below.
+
+![Four plots](http://i.imgur.com/1SnWOu1.png)  
+_Plotted results_

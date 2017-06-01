@@ -25,7 +25,7 @@ class NCAPVideoAnalyser(object):
         self.img_max_size = 800
         self.h_margin = 20
         self.v_margin = 40
-        self.roi_margin_perc = 40
+        self.roi_margin_perc = 30
 
         #Sidebar settings
         self.btn_padx = 45
@@ -158,20 +158,8 @@ class NCAPVideoAnalyser(object):
         #close video
         cap.release()
 
-        #get dimensions
-        height, width = frame.shape[:2]
-        #calc x-y factor
-        xy_factor = width / height
+        frame = self.__resize_image_fit(frame)
 
-        if width >= height:
-            new_img_width = self.img_max_size
-            new_img_height = int(self.img_max_size/xy_factor)
-        else:
-            new_img_width = int(self.img_max_size*xy_factor)
-            new_img_height = self.img_max_size
-
-        #resize
-        frame = cv2.resize(frame, (new_img_width, new_img_height))
         self.cv_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self.cv_img_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -332,9 +320,6 @@ class NCAPVideoAnalyser(object):
 
         output  -> acceleration per frame
         """
-        # a = d_v / d_t
-        # d_v = vel_point
-        # d_t = frame_time
 
         acceleration_points = []
         prev_vel = self.start_speed
@@ -354,9 +339,6 @@ class NCAPVideoAnalyser(object):
 
         output  -> acceleration in G per frame
         """
-        # a = d_v / d_t
-        # d_v = vel_point
-        # d_t = frame_time
 
         g = 9.81
 
@@ -449,11 +431,23 @@ class NCAPVideoAnalyser(object):
             #find keypoints
             keypoints, img_bin = self._find_ncap_marker(thres_img)
 
-            for keypoint in keypoints:
-                keypoint.size = keypoint.size * 2
+            if len(keypoints) > 0:
+                for keypoint in keypoints:
+                    keypoint.size = keypoint.size * 2
 
-            #save datapoints
-            self.datapoints.append([frame_id, keypoints[0].pt, keypoints[0].size])
+                #save datapoints
+                self.datapoints.append([frame_id, keypoints[0].pt, keypoints[0].size])
+
+                #draw to screen
+                im_with_keypoints = cv2.drawKeypoints(cv2.cvtColor(frame_roi, cv2.COLOR_HSV2RGB),
+                                                      keypoints,
+                                                      np.array([]),
+                                                      (255, 255, 255),
+                                                      cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+                self.__display_cv_img_on_screen(im_with_keypoints, False)
+            else:
+                #No keypoint, EOF?
+                break
 
             self.root.update()
 
@@ -539,18 +533,22 @@ class NCAPVideoAnalyser(object):
         """Set the UI lock, useful for processing loops"""
         self.lock_ui = locked
 
-    def __display_cv_img_on_screen(self, cv_disp_img):
+    def __display_cv_img_on_screen(self, cv_disp_img, roi=True):
         """Displays an image on the windows canvas"""
-        #apply roi
-        height, width = cv_disp_img.shape[:2]
-        tmp_height = int(height / 100 * self.roi_margin_perc)
+        if roi:
+            #apply roi
+            height, width = cv_disp_img.shape[:2]
+            tmp_height = int(height / 100 * self.roi_margin_perc)
 
-        #create roi mask
-        cv2.rectangle(cv_disp_img,
-                      (0, tmp_height),
-                      (width, int(height-tmp_height)),
-                      (0, 255, 0),
-                      3)
+            #create roi mask
+            cv2.rectangle(cv_disp_img,
+                        (0, tmp_height),
+                        (width, int(height-tmp_height)),
+                        (0, 255, 0),
+                        3)
+
+        #fit image to screen
+        cv_disp_img = self.__resize_image_fit(cv_disp_img)
 
         #convert to tk_img
         #convert color from BGR to RGB
@@ -621,6 +619,22 @@ class NCAPVideoAnalyser(object):
     def __resize_window_to_image(self, img_width, img_height):
         """Resize window to fit image"""
         self.__resize_window(img_width, img_height+50)
+        
+    def __resize_image_fit(self, frame):
+        #get dimensions
+        height, width = frame.shape[:2]
+        #calc x-y factor
+        xy_factor = width / height
+
+        if width >= height:
+            new_img_width = self.img_max_size
+            new_img_height = int(self.img_max_size/xy_factor)
+        else:
+            new_img_width = int(self.img_max_size*xy_factor)
+            new_img_height = self.img_max_size
+
+        #resize
+        return cv2.resize(frame, (new_img_width, new_img_height))
 
 
 
