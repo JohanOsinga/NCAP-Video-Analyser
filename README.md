@@ -29,8 +29,8 @@ Data from the Euro NCAP is used to determine the distance, speed and acceleratio
 ### Video
 The video that is used in this program is a crash test of a Toyota Hilux 2016 model. The test that is performed is the _FRONTAL OFFSET DEFORMABLE BARRIER IMPACT_ test. This test is performed with a speed of 64km/u. A frame from this video is displayed below.
 
-![frame from ncap video](http://i.imgur.com/vtTua2e.jpg)
-__Video frame__
+![frame from ncap video](http://i.imgur.com/vtTua2e.jpg)  
+_Video frame_
 
 The NCAP logo in this video is used to determine travelled distance between frames.
 
@@ -39,7 +39,8 @@ The video file can be found in [video/hilux_ncap_short.mp4](https://github.com/J
 ### NCAP logo
 The NCAP logo was chosen because it is a yellow circle on the side of the car. This means it has a good contrast with the car and can easily be used to track with some thresholding. The part of the logo that will be tracked is shown below.
 
-![NCAP logo](http://i.imgur.com/460gf7k.png)
+![NCAP logo](http://i.imgur.com/460gf7k.png)  
+_NCAP logo_
 
 The size of this circle in the logo is 176mm. This will be used later on when analysing the data.
 
@@ -48,8 +49,8 @@ There are a few steps performed before the NCAP logo can be detected accurately.
 ### Region of interest
 First a region of interest (ROI) is specified. The original video footage contains multiple NCAP logo's. One on the car and one as a watermark on the video, this can be seen in the frame displayed above. A ROI can be created because the logo on the car is always around the y-center of the screen. The ROI used in this program is shown below.
 
-![ROI displayed in UI](http://i.imgur.com/fQqmAoC.jpg)
-__ROI displayed in UI__
+![ROI displayed in UI](http://i.imgur.com/fQqmAoC.jpg)  
+_ROI displayed in UI_
 
 Creating a ROI in OpenCV using Python is done by creating a binary mask with the same height and width of the original frame. This binary mask has to contain one's at the pixels that need to be in the ROI, the rest is zero's. The ROI is created by by performing a ```cv2.bitwise_and()``` operation on the original image and the mask. Only the pixels matching a 1 in the mask will be kept. The python code is shown below.
 
@@ -70,8 +71,8 @@ frame_roi = cv2.bitwise_and(frame, frame, mask=roi_mask)
 
 The resulting ROI is shown below. This ROI is used later on in the program to detect the NCAP logo.
 
-![ROI as used in program](http://i.imgur.com/P6jaFT2.png)
-__ROI used in program__
+![ROI as used in program](http://i.imgur.com/P6jaFT2.png)  
+_ROI used in program_
 
 ### Color filtering
 The frame is converted from RGB / BGR to 
@@ -80,13 +81,13 @@ This makes filtering the colors a lot easier. The user can pick a color by click
 
 The below mask is created by clicking on the yellow part of the NCAP logo in the interface. The thresholding used will be explained later.
 
-![Color threshold yellow](http://i.imgur.com/tSkhLeo.png)
-__Mask created from color__
+![Color threshold yellow](http://i.imgur.com/tSkhLeo.png)  
+_Mask created from color_
 
 This originial image is muliplied by the mask using the ```cv2.bitwise_and()``` function. The resulting image is shown below.
 
-![Color masked image](http://i.imgur.com/geV5SuZ.png)
-__Frame color masked__
+![Color masked image](http://i.imgur.com/geV5SuZ.png)  
+_Frame color masked_
 
 The above image still shows multiple NCAP logos, but because of the ROI this will not impact the detection.
 
@@ -107,8 +108,8 @@ def _apply_threshold(self, value_h, value_s, value_v):
 
 The output of this is a binary image. For example, filtering the NCAP logo (yellow) color results in the following mask.
 
-![Color threshold yellow](http://i.imgur.com/tSkhLeo.png)
-__Mask created from color__
+![Color threshold yellow](http://i.imgur.com/tSkhLeo.png)  
+_Mask created from color_
 
 This image had to be transformed before it can be used to track the NCAP logo.
 
@@ -125,18 +126,18 @@ The second transformation is Opening. This is the opposite of Closing. Opening f
 
 The images below displays the process of opening and closing. First the binary image of the color thresholded ROI is shown.
 
-![Binary color thresholded ROI](http://i.imgur.com/ymE13Na.png)
-__Binary color thresholded ROI__
+![Binary color thresholded ROI](http://i.imgur.com/ymE13Na.png)  
+_Binary color thresholded ROI_
 
 First the Closing transformation is performed on the binary image. The result is shown below.
 
-![ROI Closed](http://i.imgur.com/OlduNbx.png)
-__Binary ROI after Closing__
+![ROI Closed](http://i.imgur.com/OlduNbx.png)  
+_Binary ROI after Closing_
 
-Then to filter out the noise in the ROI the Opening transformation is performed.
+Then to filter out the noise in the ROI the Opening transformation is performed.  
 
-![ROI Closed and Openend](http://i.imgur.com/yiHZddu.png)
-__Binary ROI after Closing and Opening__
+![ROI Closed and Openend](http://i.imgur.com/yiHZddu.png)  
+_Binary ROI after Closing and Opening_
 
 The following code is used for the Closing and Opening transformations.
 
@@ -193,8 +194,8 @@ keypoints = detector.detect(cv2.bitwise_not(img_bin))
 
 Executing this SimpleBlobDetector returns one keypoints for the NCAP logo. The keypoint drawn on top of the ROI is shown in the image below.
 
-![Keypoint in ROI](http://i.imgur.com/GWX1pce.png)
-__Keypoint drawn on ROI__
+![Keypoint in ROI](http://i.imgur.com/GWX1pce.png)  
+_Keypoint drawn on ROI_
 
 These vision operations are performed for every frame of the video. The result of this is an array with datapoints. These datapoints are then analysed. This process is described in the next part.
 
