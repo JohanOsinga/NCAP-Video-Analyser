@@ -448,11 +448,6 @@ class NCAPVideoAnalyser(object):
             self.status.set('Frame ' + str(frame_id))
             #find keypoints
             keypoints, img_bin = self._find_ncap_marker(thres_img)
-            im_with_keypoints = cv2.drawKeypoints(masked,
-                                                  keypoints,
-                                                  np.array([]),
-                                                  (255, 255, 255),
-                                                  cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
             for keypoint in keypoints:
                 keypoint.size = keypoint.size * 2
